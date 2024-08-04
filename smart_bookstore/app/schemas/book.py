@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional
 
 class BookSchema(BaseModel):
@@ -7,3 +7,17 @@ class BookSchema(BaseModel):
     author_id: int
     genre: Optional[str] = None
     description: Optional[str] = None
+    average_rating: Optional[float] = None
+    published_year: Optional[int] = None
+    cover: Optional[str] = None
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class ModBookSchema(BaseModel):
+    title: str
+    author_id: int
+    genre: Optional[str] = None
+    description: Optional[str] = None
+    average_rating: Optional[float] = None
+    published_year: Optional[int] = None
+    cover: Optional[str] = None

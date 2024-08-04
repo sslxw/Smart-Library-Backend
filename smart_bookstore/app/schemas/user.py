@@ -16,3 +16,7 @@ class UserActivitySchema(BaseModel):
     username: str
     activity: str
     timestamp: datetime
+
+class ViewUserSchema(BaseModel):
+    username: str
+    role: Optional[str] = None

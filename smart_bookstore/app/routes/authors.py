@@ -10,15 +10,14 @@ from app.common.CRUD.author_crud import get_authors, get_author_by_id, create_au
 router = APIRouter()
 
 @router.get("/authors", response_model=List[AuthorSchema], tags=["Authors"], operation_id="get_authors_list")
-def get_authors_route(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def get_authors_route(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user), page: int = 1, page_size: int = 1):
     log_user_activity(db, current_user['username'], "Searched for all authors")
-    return get_authors(db)
+    return get_authors(db, page, page_size)
 
 @router.get("/authors/{author_id}", response_model=AuthorSchema, tags=["Authors"], operation_id="get_author_by_id")
-def get_author_route(author_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def get_author_route(author_id: int, db: Session = Depends(get_db)):
     author = get_author_by_id(db, author_id)
-    log_user_activity(db, current_user['username'], f"Searched for author with ID: {author_id}")
-
+    
     if not author:
         raise HTTPException(status_code=404, detail="Author not found")
     return author

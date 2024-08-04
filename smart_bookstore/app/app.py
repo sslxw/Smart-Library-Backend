@@ -1,11 +1,29 @@
 from fastapi import FastAPI # type: ignore
-from app.routes import users, books, authors
+from app.routes import users, books, authors, chat
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
+
+# Define the origins that are allowed to make requests to this API
+origins = [
+    "http://localhost:5500",  
+    "http://127.0.0.1:5500",  
+    "http://localhost:5175",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(users.router)
 app.include_router(books.router)
 app.include_router(authors.router)
+app.include_router(chat.router)
 
 @app.get("/")
 def read_root():

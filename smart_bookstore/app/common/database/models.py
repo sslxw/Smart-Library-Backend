@@ -1,7 +1,8 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Float, create_engine
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.common.database.database import Base
+
 
 class User(Base):
     __tablename__ = "users"
@@ -36,7 +37,7 @@ class UserActivity(Base):
 class Author(Base):
     __tablename__ = "authors"
 
-    author_id = Column(Integer, primary_key=True, index=True)
+    author_id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     name = Column(String, index=True)
     biography = Column(String)
 
@@ -50,5 +51,11 @@ class Book(Base):
     author_id = Column(Integer, ForeignKey("authors.author_id"))
     genre = Column(String)
     description = Column(String)
+    average_rating = Column(Float)  # Column for average rating
+    published_year = Column(Integer)  # Column for published year
+    cover = Column(String)  # New column for cover image link
 
     author = relationship("Author", back_populates="books")
+
+
+

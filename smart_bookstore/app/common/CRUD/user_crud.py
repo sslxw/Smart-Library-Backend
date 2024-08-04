@@ -27,3 +27,7 @@ def authenticate_user(db: Session, username: str, password: str) -> User:
     if not user or not verify_password(password, user.password_hash):
         return None
     return user
+
+def get_users_with_pagination(db: Session, page, page_size):
+    offset = (page - 1) * page_size
+    return db.query(User).limit(page_size).offset(offset).all()
