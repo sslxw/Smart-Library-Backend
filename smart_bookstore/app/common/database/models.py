@@ -1,8 +1,7 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Float, create_engine
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 from app.common.database.database import Base
-
 
 class User(Base):
     __tablename__ = "users"
@@ -13,6 +12,9 @@ class User(Base):
 
     preferences = relationship("UserPreference", back_populates="user")
     activities = relationship("UserActivity", back_populates="user")
+    liked_books = relationship("UserLikedBook", back_populates="user")
+    activities = relationship("UserActivity", cascade="all, delete-orphan", back_populates="user")
+
 
 class UserPreference(Base):
     __tablename__ = "userpreferences"
@@ -30,7 +32,7 @@ class UserActivity(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, ForeignKey("users.username"))
     activity = Column(String)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=datetime.now(timezone.utc))
 
     user = relationship("User", back_populates="activities")
 
@@ -51,11 +53,19 @@ class Book(Base):
     author_id = Column(Integer, ForeignKey("authors.author_id"))
     genre = Column(String)
     description = Column(String)
-    average_rating = Column(Float)  # Column for average rating
-    published_year = Column(Integer)  # Column for published year
-    cover = Column(String)  # New column for cover image link
+    average_rating = Column(Float)  
+    published_year = Column(Integer)  
+    cover = Column(String)  
 
     author = relationship("Author", back_populates="books")
+    liked_by = relationship("UserLikedBook", back_populates="book")
 
+class UserLikedBook(Base):
+    __tablename__ = "user_liked_books"
 
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    username = Column(String, ForeignKey("users.username"))
+    book_id = Column(Integer, ForeignKey("books.book_id"))
 
+    user = relationship("User", back_populates="liked_books")
+    book = relationship("Book", back_populates="liked_by")

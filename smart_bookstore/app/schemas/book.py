@@ -21,3 +21,8 @@ class ModBookSchema(BaseModel):
     average_rating: Optional[float] = None
     published_year: Optional[int] = None
     cover: Optional[str] = None
+
+class UserLikedBook(BaseModel):
+    username: str
+    book_id: int
+

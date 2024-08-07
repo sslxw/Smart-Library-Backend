@@ -15,7 +15,6 @@ async def chatbot(request: QueryRequest):
         session_history.add_message(HumanMessage(content=human_input))
         initial_state = {"messages": session_history.messages}
         
-        # Invoke the graph
         graph_response = app_graph.invoke(initial_state, config=config)
         final_messages = graph_response["messages"]
 

@@ -23,6 +23,7 @@ langchain-ollama = "^0.1.0"
 pandas = "^2.2.2"
 langgraph = "^0.1.11"
 langchain-openai = "^0.1.17"
+langchain-huggingface = "^0.0.3"
 
 [tool.pytest.ini_options]
 pythonpath = [

@@ -2,7 +2,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-# Fetch database URL from environment variables
+# remember to make this an env
 DATABASE_URL = "postgresql://postgres:password@localhost:5432/Bookstore"
 
 engine = create_engine(DATABASE_URL)
@@ -16,3 +16,4 @@ def get_db():
         yield db
     finally:
         db.close()
+
