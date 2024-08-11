@@ -55,10 +55,10 @@ def delete_books(book_id: int, db: Session = Depends(get_db), current_user: dict
     return delete_book(db, book_id)
 
 @router.get("/recommendations", response_model=List[BookSchema], tags=["Recommendations"])
-def get_recommended_books_route(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def get_recommended_books_route(page: int = 1, page_size: int = 10, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     try:
         log_user_activity(db, current_user['username'], "Viewed their recommendations")
-        return get_recommended_books(db, current_user["username"])
+        return get_recommended_books(db, current_user["username"], page, page_size)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -91,7 +91,7 @@ def get_liked_books_route(db: Session = Depends(get_db), current_user: dict = De
     return get_liked_books(db, current_user['username'])
 
 @router.get("/books/publish_year/{order}", response_model=List[BookSchema], tags=["Books"], operation_id="get_books_by_publish_year")
-def get_books_by_publish_year_route(order: str, page: int = 1, page_size: int = 10, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def get_books_by_publish_year_route(order: str, page: int = 1, page_size: int = 10, db: Session = Depends(get_db)):
     if order not in ['asc', 'desc']:
         raise HTTPException(status_code=400, detail="Invalid order parameter. Use 'asc' or 'desc'.")
     return get_books_by_publish_year(db, order, page, page_size)

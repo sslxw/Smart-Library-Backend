@@ -1,3 +1,4 @@
+import asyncio
 from sqlalchemy.orm import Session
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, END
@@ -14,15 +15,14 @@ from langchain_core.chat_history import BaseChatMessageHistory, InMemoryChatMess
 from langchain_ollama.llms import OllamaLLM
 from app.utils.prompts import main_template, intent_template
 
-# Initialize embeddings and Chroma
 embeddings = HuggingFaceEmbeddings()
 db_chroma = Chroma(persist_directory="./chroma_db", embedding_function=embeddings)
 
-# Initialize models
 model = ChatOpenAI(model="gpt-4o-mini", api_key="API-KEY")
 intent_model = ChatOpenAI(model="gpt-4o-mini", api_key="API-KEY")
 
-# Initialize prompts
+model = model.with_config(tags=["final_node"])
+
 main_prompt = ChatPromptTemplate.from_template(main_template)
 intent_prompt = ChatPromptTemplate.from_template(intent_template)
 
@@ -41,29 +41,31 @@ main_with_message_history = RunnableWithMessageHistory(
     get_session_history=get_session_history
 )
 
-intent_with_message_history = RunnableWithMessageHistory(
-    runnable=intent_chain,
-    get_session_history=get_session_history
-)
-
 def ensure_session_id(state):
     if 'session_id' not in state:
         state['session_id'] = 'default_session'
     return state
 
-def detect_intent(state):
+async def detect_intent(state):
     state = ensure_session_id(state)
     
     intent_input = state['messages'][-1].content
-    config = {"configurable": {"session_id": state['session_id']}}
-    intent_response = intent_with_message_history.invoke([HumanMessage(content=intent_input)], config=config)
+    intent_response = intent_chain.invoke([HumanMessage(content=intent_input)])
     intent = intent_response.content.strip().lower().split()[0]
+    print(intent)
     if intent == "unknown":
-        response = AIMessage(content="I'm sorry, I can only answer questions that relate to book recommendations, finding books that relate to a description, top books in a specific genre, or adding a book to the database.")
-        return {"messages": [response], "intent": "unknown", "session_id": state['session_id']}
-    return {"intent": intent.strip('"'), "session_id": state['session_id'], "messages": state['messages']}
+        combined_input = f"The user's intent could not be recognized."
+        final_response = await main_chain.ainvoke([HumanMessage(content=combined_input)])
+        
+        response_message = AIMessage(content=final_response.content)
+        
+        return {
+            "messages": [response_message], "intent": "unknown", "session_id": state['session_id']}
+    
+    return {
+        "intent": intent.strip('"'), "session_id": state['session_id'], "messages": state['messages'] }
 
-def book_recommendation(state):
+async def book_recommendation(state):
     state = ensure_session_id(state)
     
     human_input = state['messages'][-1].content
@@ -71,53 +73,54 @@ def book_recommendation(state):
     combined_input = f"Context: {context}\n\nHuman Message: {human_input}"
 
     config = {"configurable": {"session_id": state['session_id']}}
-    response = main_with_message_history.invoke([HumanMessage(content=combined_input)], config=config)
+    response = await main_with_message_history.ainvoke([HumanMessage(content=combined_input)], config=config)
     
     response_message = response.content
     
-    # Store the book recommendation in the session history
     state['session_history'] = state.get('session_history', [])
     state['session_history'].append({'type': 'book_recommendation', 'content': response_message})
     
     return {"messages": state['messages'] + [AIMessage(content=response_message)], "session_id": state['session_id'], "session_history": state['session_history']}
 
-def top_books_genre(state, db: Session):
+async def top_books_genre(state, db: Session):
     state = ensure_session_id(state)
     
     message_content = state['messages'][-1].content.lower()
+    print(f"Received message content: {message_content}")
+    
     match = re.search(r"top (\d+) books in (.+)", message_content, re.IGNORECASE)
     if match:
         k = int(match.group(1))
         genre = match.group(2).strip()
+        print(f"Querying top {k} books in the genre: {genre}")
         top_books = db.query(Book).filter(Book.genre.ilike(f"%{genre}%")).order_by(Book.average_rating.desc()).limit(k).all()
         if top_books:
-            response_content = f"Here are the top {k} books in the genre '{genre}':\n"
-            for book in top_books:
-                response_content += f"- {book.title} by {book.author.name} (Rating: {book.average_rating})\n"
+            response_message = f"Here are the top {k} books in the genre '{genre}':\n\n"
+            for i, book in enumerate(top_books, 1):
+                response_message += f"{i}. \"{book.title}\" by {book.author.name} (Rating: {book.average_rating})\n"
         else:
-            response_content = f"No books found in the genre '{genre}'."
-        response = AIMessage(content=response_content)
+            response_message = f"No books found in the genre '{genre}'."
     else:
-        response = AIMessage(content="Please specify the number of top books and the genre.")
+        response_message = "Please specify the number of top books and the genre."
     
-    # Store the top books genre response in the session history
+    combined_input = f"Human Message: {message_content}\n\n{response_message}"
+    print(f"Combined input for model: {combined_input}")
+    
+    response = await main_chain.ainvoke([HumanMessage(content=combined_input)]) # change this later
     state['session_history'] = state.get('session_history', [])
-    state['session_history'].append({'type': 'top_books_genre', 'content': response.content})
+    state['session_history'].append({'type': 'top_books_genre', 'content': response_message})
     
-    return {"messages": state['messages'] + [response], "session_id": state['session_id'], "session_history": state['session_history']}
+    print(f"Returning response: {response_message}")
+    return {"messages": state['messages'] + [AIMessage(content=response_message)], "session_id": state['session_id'], "session_history": state['session_history']}
 
-def add_book(state, db: Session):
+
+async def add_book(state, db: Session):
     state = ensure_session_id(state)
     
     message_content = state['messages'][-1].content
 
     match = re.search(
-        r'add book titled "(.+?)" by (.+?), genre: (.+?), description: (.+?), rating: (\d+(\.\d+)?), published in (\d{4})',
-        message_content, re.IGNORECASE
-    )
-    
-    print(f"Message Content: {message_content}")
-    print(f"Match: {match.groups() if match else 'No match found'}")
+        r'add book titled "(.+?)" by (.+?), genre: (.+?), description: (.+?), rating: (\d+(\.\d+)?), published in (\d{4})',message_content, re.IGNORECASE)
     
     if match:
         title, author_name, genre, description, average_rating, _, published_year = match.groups()
@@ -146,36 +149,47 @@ def add_book(state, db: Session):
             'description: DESCRIPTION, rating: RATING, published in YEAR.'
         )
     
-    response = AIMessage(content=response_content)
-    
-    # Store the add book response in the session history
-    state['session_history'] = state.get('session_history', [])
-    state['session_history'].append({'type': 'add_book', 'content': response.content})
-    
-    return {"messages": state['messages'] + [response], "session_id": state['session_id'], "session_history": state['session_history']}
+    combined_input = f"User requested to add a book:\n\n{message_content}\n\n{response_content}"
 
-def chat_history_query(state):
+    final_response = await main_chain.ainvoke([HumanMessage(content=combined_input)])
+    
+    state['session_history'] = state.get('session_history', [])
+    state['session_history'].append({'type': 'add_book', 'content': final_response.content})
+    
+    return {"messages": state['messages'] + [AIMessage(content=final_response.content)], "session_id": state['session_id'], "session_history": state['session_history']}
+
+async def chat_history_query(state):
     state = ensure_session_id(state)
     
     query = state['messages'][-1].content
     history = get_session_history(state['session_id']).messages
     combined_history = "\n".join([f"Human: {msg.content}" if isinstance(msg, HumanMessage) else f"AI: {msg.content}" for msg in history])
-    
+    print(combined_history)
     combined_input = f"History:\n{combined_history}\n\nHuman Message: {query}"
 
     config = {"configurable": {"session_id": state['session_id']}}
-    response = main_with_message_history.invoke([HumanMessage(content=combined_input)], config=config)
+
+    response = await main_with_message_history.ainvoke([HumanMessage(content=combined_input)], config=config)
     
     response_message = response.content
     return {"messages": state['messages'] + [AIMessage(content=response_message)], "session_id": state['session_id'], "session_history": state.get('session_history', [])}
 
-def greet(state):
+async def greet(state):
     state = ensure_session_id(state)
     
-    response = AIMessage(content="Hello! How can I assist you today?")
-    return {"messages": state['messages'] + [response], "session_id": state['session_id'], "session_history": state.get('session_history', [])}
+    human_input = state['messages'][-1].content
+    combined_input = f"Human Message: {human_input} + (Only greet the user with ('Hi, Please ask a question about books.') and dont answer their question if they don't relate to greeting, if they do ask a question tell them to ask it alone.)" # play around with this later
+    config = {"configurable": {"session_id": state['session_id']}}
 
-# Define the workflow
+    response = await main_with_message_history.ainvoke([HumanMessage(content=combined_input)], config=config)
+    
+    response_message = response.content
+    
+    state['session_history'] = state.get('session_history', [])
+    state['session_history'].append({'type': 'greet', 'content': response_message})
+    
+    return {"messages": state['messages'] + [AIMessage(content=response_message)], "session_id": state['session_id'], "session_history": state['session_history']}
+
 workflow = StateGraph(AgentState)
 
 workflow.add_node("detect_intent", detect_intent)
@@ -183,11 +197,11 @@ workflow.add_node("book_recommendation", book_recommendation)
 
 def top_books_genre_node(state):
     with next(get_db()) as db:
-        return top_books_genre(state, db)
+        return asyncio.run(top_books_genre(state, db))
 
 def add_book_node(state):
     with next(get_db()) as db:
-        return add_book(state, db)
+        return asyncio.run(add_book(state, db))
 
 workflow.add_node("top_books_genre", top_books_genre_node)
 workflow.add_node("add_book", add_book_node)
