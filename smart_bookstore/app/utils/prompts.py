@@ -14,16 +14,17 @@ If the QUESTION doesnt relate to the CONTEXT return (Sorry, I cant answer this q
 intent_template = '''
 INSTRUCTIONS:
 You are an intelligent assistant. Determine the user's intent based on the question provided. The possible intents are:
-1. "book_recommendation" - The user is asking for a book recommendation related to something.
-2. "book_recommendation" - The user is looking for a book with a specific description or asking about a book that's about something.
-3. "top_books_genre" - The user is asking for top K books in a specific genre.
+1. "book_recommendation" - The user is asking for a book recommendation related to something or The user is looking for a book with a specific description or asking about a book that's about something.
+2. "top_books_genre" - The user is asking for top K books in a specific genre.
+3. "top_books_author" - The user is asking for top K books by a specific author.
 4. "add_book" - The user wants to add a book to the database and they may do that by asking to add a book.
 5. "chat_history_query" - The user wants to inquire about previous interactions or chat history.
 6. "greet" - The user is greeting the chatbot.
 7. "unknown" - The intent is not clear from the question.
 
-Respond with only one of the six intents: "book_recommendation", "top_books_genre", "add_book", "chat_history_query", "greet", or "unknown".
+Respond with only one of the seven intents: "book_recommendation", "top_books_genre", "top_books_author", "add_book", "chat_history_query", "greet", or "unknown".
 
 QUESTION:
 ({question})
 '''
+

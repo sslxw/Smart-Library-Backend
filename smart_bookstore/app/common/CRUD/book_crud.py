@@ -76,7 +76,7 @@ def get_recommended_books(db: Session, username: str, page: int = 1, page_size: 
     preferred_genres = [pref.preference_value for pref in user_preferences if pref.preference_type == "genre"]
     
     if not preferred_genres:
-        raise HTTPException(status_code=404, detail="No preferred genres found for user")
+        raise HTTPException(status_code=404, detail="No preferred genres found for user, please go to the profile page to select favorite genres!")
 
     offset = (page - 1) * page_size
     recommended_books = db.query(Book).filter(Book.genre.in_(preferred_genres)).offset(offset).limit(page_size).all()

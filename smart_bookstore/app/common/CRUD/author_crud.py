@@ -4,9 +4,13 @@ from fastapi import HTTPException
 from app.common.database.models import Author
 from app.schemas.author import AuthorSchema
 
-def get_authors(db: Session, page: int, page_size: int):
+def get_authors(db: Session, page: int, page_size: int, name: str = None):
     offset = (page - 1) * page_size
-    return db.query(Author).limit(page_size).offset(offset).all()
+    query = db.query(Author)
+    if name:
+        query = query.filter(Author.name.ilike(f'%{name}%'))
+    return query.limit(page_size).offset(offset).all()
+
 
 def get_author_by_id(db: Session, author_id: int) -> Author:
     return db.query(Author).filter(Author.author_id == author_id).first()

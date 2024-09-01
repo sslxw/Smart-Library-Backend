@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from typing import List
 from app.common.database.database import get_db
-from app.schemas.author import AuthorSchema
+from app.schemas.author import AuthorSchema, SAuthorSchema
 from app.middleware.auth import get_current_user, admin_required
 from app.middleware.logger import log_user_activity
 from app.common.CRUD.author_crud import (
@@ -15,15 +15,17 @@ from app.common.CRUD.author_crud import (
 
 router = APIRouter()
 
-@router.get("/authors", response_model=List[AuthorSchema], tags=["Authors"], operation_id="get_authors_list")
+@router.get("/authors", response_model=List[SAuthorSchema], tags=["Authors"], operation_id="get_authors_list")
 def get_authors_route(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     page: int = 1,
-    page_size: int = 10
+    page_size: int = 10,
+    name: str = None
 ):
-    log_user_activity(db, current_user['username'], "Searched for all authors")
-    return get_authors(db, page, page_size)
+    log_user_activity(db, current_user['username'], "Searched for authors")
+    return get_authors(db, page, page_size, name)
+
 
 @router.get("/authors/{author_id}", response_model=AuthorSchema, tags=["Authors"], operation_id="get_author_by_id")
 def get_author_route(author_id: int, db: Session = Depends(get_db)):

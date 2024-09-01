@@ -19,7 +19,7 @@ class User(Base):
 class UserPreference(Base):
     __tablename__ = "userpreferences"
 
-    preference_id = Column(Integer, primary_key=True, index=True)
+    preference_id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     username = Column(String, ForeignKey("users.username"))
     preference_type = Column(String)
     preference_value = Column(String)

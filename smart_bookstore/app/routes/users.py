@@ -3,7 +3,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from typing import List
 from app.common.database.database import get_db
-from app.common.database.models import UserActivity
+from app.common.database.models import User, UserActivity, UserPreference
 from app.schemas.user import UserSchema, TokenSchema, UserActivitySchema, ViewUserSchema
 from app.middleware.auth import create_access_token, get_current_user, admin_required
 from app.common.CRUD.user_crud import (
@@ -49,11 +49,17 @@ def get_user_activities(
     db: Session = Depends(get_db),
     current_user: dict = Depends(admin_required),
     page: int = 1,
-    page_size: int = 10
+    page_size: int = 10,
+    username: str = None
 ):
     offset = (page - 1) * page_size
-    activities = db.query(UserActivity).limit(page_size).offset(offset).all()
-    return activities
+    query = db.query(UserActivity)
+    
+    if username:
+        query = query.join(User).filter(User.username.ilike(f'%{username}%'))
+    
+    return query.limit(page_size).offset(offset).all()
+
 
 @router.get("/admin/users", response_model=List[ViewUserSchema], tags=["Admin"])
 def read_users(
@@ -67,7 +73,7 @@ def read_users(
         raise HTTPException(status_code=404, detail="No users found")
     return users
 
-@router.delete("/admin/users/{username}", tags=["Admin"])
+@router.delete("/admin/users/{username}", tags=["Admin"]) # add the func to user_crud
 def remove_user(
     username: str,
     db: Session = Depends(get_db),
@@ -78,4 +84,28 @@ def remove_user(
         log_user_activity(db, current_user['username'], f"Deleted user {username}")
         return {"message": f"User '{username}' has been successfully deleted"}
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) 
+    
+@router.post("/users/preferences/genres", tags=["Users"])  # add the func to user_crud
+def update_user_genres(genres: List[str], db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    user_preferences = db.query(UserPreference).filter(UserPreference.username == current_user['username'], UserPreference.preference_type == "genre").all()
+    existing_genres = {pref.preference_value for pref in user_preferences}
+
+    # Determine genres to add and remove
+    genres_to_add = set(genres) - existing_genres
+    genres_to_remove = existing_genres - set(genres)
+
+    # Add new genres
+    for genre in genres_to_add:
+        new_preference = UserPreference(username=current_user['username'], preference_type="genre", preference_value=genre)
+        db.add(new_preference)
+
+    # Remove unselected genres
+    for genre in genres_to_remove:
+        db.query(UserPreference).filter(UserPreference.username == current_user['username'], UserPreference.preference_type == "genre", UserPreference.preference_value == genre).delete()
+
+    db.commit()
+    return {"message": "User genres updated successfully"}
+
+
+
